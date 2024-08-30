@@ -1,8 +1,6 @@
 import random
-
 import torch
 from torch import nn as nn
-
 
 class TotalVariation(nn.Module):
     def __init__(self, p: int = 2):
@@ -17,22 +15,22 @@ class TotalVariation(nn.Module):
         return x_wise.norm(p=self.p, dim=(2, 3)).mean() + y_wise.norm(p=self.p, dim=(2, 3)).mean() + \
                diag_1.norm(p=self.p, dim=(2, 3)).mean() + diag_2.norm(p=self.p, dim=(2, 3)).mean()
 
-
 class Jitter(nn.Module):
-    def __init__(self, lim: int = 32):
+    def __init__(self, lim: int = 32, modeldims: int = 224):
         super().__init__()
         self.lim = lim
+        self.modeldims = modeldims
 
     def forward(self, x: torch.tensor) -> torch.tensor:
         off1 = random.randint(-self.lim, self.lim)
         off2 = random.randint(-self.lim, self.lim)
         return torch.roll(x, shifts=(off1, off2), dims=(2, 3))
 
-
 class JitterBatch(nn.Module):
-    def __init__(self, lim: int = 32):
+    def __init__(self, lim: int = 32, modeldims: int = 224):
         super().__init__()
         self.lim = lim
+        self.modeldims = modeldims
 
     def forward(self, x: torch.tensor) -> torch.tensor:
         b, c, h, w = x.shape
@@ -44,7 +42,6 @@ class JitterBatch(nn.Module):
             out = torch.cat((out, out1), dim=0)
         return out
 
-
 class RepeatBatch(nn.Module):
     def __init__(self, repeat: int = 32):
         super().__init__()
@@ -52,7 +49,6 @@ class RepeatBatch(nn.Module):
 
     def forward(self, img: torch.tensor):
         return img.repeat(self.size, 1, 1, 1)
-
 
 class ColorJitter(nn.Module):
     def __init__(self, batch_size: int, shuffle_every: bool = False, mean: float = 1., std: float = 1.):

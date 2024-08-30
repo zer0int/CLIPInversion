@@ -40,7 +40,10 @@ args.prompt = ' '.join(args.prompt)
 print(f'prompt: <{args.prompt}>')
 print(f'extra prompts are: {args.extra_prompts}')
 device = "cuda" if torch.cuda.is_available() else "cpu"
-# ['RN50', 'RN101', 'RN50x4', 'RN50x16', 'ViT-B/32', 'ViT-B/16']
+
+# Determine model dimensions
+modeldims = 336 if args.model_name.endswith('336px') else 224
+
 model_names = [args.model_name]
 models = []
 for model_name in model_names:
@@ -49,7 +52,7 @@ for model_name in model_names:
     model = model.cuda()
     models.append(model)
 normalizer = Normalization([0.48145466, 0.4578275, 0.40821073], [0.26862954, 0.26130258, 0.27577711]).cuda()
-scale = Scale(224)
+scale = Scale(modeldims)
 
 prompts = [args.prompt]
 text_inputs = torch.cat([clip.tokenize(f"{c}") for c in prompts]).to(device)
@@ -60,7 +63,6 @@ for model in models:
 image = torch.rand((1, 3, args.img_size, args.img_size)).cuda()
 image.requires_grad_()
 
-
 def get_optimizer(image):
     if args.optimizer == 'adam':
         optimizer = torch.optim.Adam([image], lr=args.lr)
@@ -69,7 +71,6 @@ def get_optimizer(image):
     scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=2000)
 
     return optimizer, scheduler
-
 
 optimizer, scheduler = get_optimizer(image)
 
@@ -85,7 +86,7 @@ os.makedirs(save_path, exist_ok=True)
 
 seq = []
 if args.jitter:
-    jitter = Jitter()
+    jitter = Jitter(lim=32, modeldims=modeldims)  # Pass modeldims here
     seq.append(jitter)
 seq.append(RepeatBatch(args.batch_size))
 pre_aug = nn.Sequential(*seq)
@@ -98,11 +99,10 @@ tv_module = TotalVariation()
 color_jitter = ColorJitter(args.batch_size, True, mean=args.cg_mean, std=args.cg_std)
 targets = torch.tensor([0] * args.batch_size).cuda()
 
-
 def forward(image, model):
     image_input = pre_aug(image)
     image_input = aug(image_input)
-    scale = Scale(model.visual.input_resolution)
+    scale = Scale(model.visual.input_resolution)  # This should still be model.visual.input_resolution
     image_input = scale(image_input)
     image_input = color_jitter(image_input)
     image_input = normalizer(image_input)
@@ -111,7 +111,6 @@ def forward(image, model):
     l2_loss = torch.norm(image_features - text_features_map[model], dim=1)
     loss = torch.mean(l2_loss)
     return loss, l2_loss
-
 
 change_scale_schedule = [900, 1800]
 
@@ -122,13 +121,12 @@ for i in range(args.num_iters):
         new_res = image.shape[2] * 2
         if args.jitter:
             jitter.lim = jitter.lim * 2
-        if new_res >= 224:
-            new_res = 224
+        if new_res >= modeldims:
+            new_res = modeldims
         up_sample = Scale(new_res)
         image = up_sample(image.detach())
         image.requires_grad_(True)
         optimizer, scheduler = get_optimizer(image)
-
 
     def closure():
         optimizer.zero_grad()
@@ -150,10 +148,9 @@ for i in range(args.num_iters):
             torchvision.utils.save_image(image, path, normalize=True, scale_each=True)
         return loss
 
-
     optimizer.step(closure)
     if i >= 3400:
         scheduler.step()
-path = os.path.join(save_path, 'final.png')
 
+path = os.path.join(save_path, 'final.png')
 torchvision.utils.save_image(image, path, normalize=True, scale_each=True)

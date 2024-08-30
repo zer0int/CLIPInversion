@@ -42,15 +42,15 @@ def get_loaders(batch_size=256, n_workers=4, dataset_name='cifar10', return_data
     return train_loader, test_loader
 
 
-def get_imagenet(batch_size=256, n_workers=4, path='data/datasets/ILSVRC2012/{}', shuffle=True):
+def get_imagenet(batch_size=256, n_workers=4, path='data/datasets/ILSVRC2012/{}', shuffle=True, modeldims=224):
     train_transforms = transforms.Compose(
-        [transforms.RandomResizedCrop(224),
+        [transforms.RandomResizedCrop(modeldims),
          transforms.RandomHorizontalFlip(),
          transforms.ToTensor(), ])
 
     eval_transforms = transforms.Compose(
-        [transforms.Resize(256),
-         transforms.CenterCrop(224),
+        [transforms.Resize(modeldims + 32),
+         transforms.CenterCrop(modeldims),
          transforms.ToTensor(), ])
 
     train_dataset = datasets.ImageFolder(root=path.format('train'),
@@ -62,6 +62,7 @@ def get_imagenet(batch_size=256, n_workers=4, path='data/datasets/ILSVRC2012/{}'
     test_loader = torch.utils.data.DataLoader(test_dataset, batch_size=batch_size,
                                               num_workers=n_workers, shuffle=True, pin_memory=True)
     return train_loader, test_loader
+
 
 
 class Normalization(nn.Module):
