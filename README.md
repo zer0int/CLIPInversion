@@ -18,6 +18,8 @@ python invert.py --num_iters 3400 --prompt "an ai robot" --img_size 64 --tv 0.00
 - GA + Inversion examples (generated with [my improved ViT-L/14 fine-tune](https://huggingface.co/zer0int/CLIP-GmP-ViT-L-14/tree/main)):
 
 ![gradient-ascent-final-example](https://github.com/user-attachments/assets/a9443a7d-a002-4f89-992a-ef9b3f3ec01a)
+
+- **Original CLIP Gradient Ascent Script**: Used with permission by Twitter / X: [@advadnoun](https://twitter.com/advadnoun)
 -----
 Original README.MD by the authors:
 -----
