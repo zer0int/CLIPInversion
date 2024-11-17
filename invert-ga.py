@@ -42,7 +42,7 @@ def parse_arguments():
     parser.add_argument('--color', action='store_true')
     parser.add_argument('--img_size', default=64, type=int)
     parser.add_argument('--eps', default=2 / 255)
-    parser.add_argument('--optimizer', default='adam')
+    parser.add_argument('--optimizer', default='adamw')
     parser.add_argument('--bri', type=float, default=0.4)
     parser.add_argument('--con', type=float, default=0.4)
     parser.add_argument('--sat', type=float, default=0.4)
@@ -52,6 +52,7 @@ def parse_arguments():
     parser.add_argument('--cg_mean', type=float, default=0.)
     parser.add_argument('--model_name', default='ViT-B/16')
     parser.add_argument('--prompt_id', type=int, default=0)
+    parser.add_argument('--center_crop', type=bool, default=True)    
     parser.add_argument('--use_image', type=str, default=None, help="Path to image file; uses text embedding of 'CLIP opinion' instead of prompt")
     return parser.parse_args()
 
@@ -190,6 +191,8 @@ def generate_target_text_embeddings(img_path, model, lats, optimizer, training_i
 def get_optimizer(image, lr, optimizer_type):
     if optimizer_type == 'adam':
         optimizer = torch.optim.Adam([image], lr=lr)
+    if optimizer_type == 'adamw':
+        optimizer = torch.optim.AdamW([image], lr=lr)    
     else:
         optimizer = torch.optim.LBFGS([image], lr=lr)
     scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=2000)
@@ -208,6 +211,11 @@ def forward(image, model, normalizer, color_jitter, text_features_map, tv_module
     loss = torch.mean(l2_loss)
     return loss, l2_loss
 
+def center_crop(img, crop_size):
+    _, _, h, w = img.shape
+    start_x = (w - crop_size) // 2
+    start_y = (h - crop_size) // 2
+    return img[:, :, start_y:start_y+crop_size, start_x:start_x+crop_size]
 
 def run_inversion(args, models, text_features_map, tv_module, normalizer, color_jitter, pre_aug, aug):
     for model in models:
@@ -231,15 +239,32 @@ def run_inversion(args, models, text_features_map, tv_module, normalizer, color_
     for i in range(args.num_iters):
         max_grad_norm = 1.
         if i in change_scale_schedule:
-            new_res = image.shape[2] * 2
-            if args.jitter:
-                jitter.lim = jitter.lim * 2
-            if new_res >= model.visual.input_resolution:
-                new_res = model.visual.input_resolution
-            up_sample = Scale(new_res)
-            image = up_sample(image.detach())
-            image.requires_grad_(True)
-            optimizer, scheduler = get_optimizer(image, args.lr, args.optimizer)
+            if args.center_crop:
+                base_res = image.shape[2] * 2
+                increment = base_res * 0.10
+                new_res = int(round(base_res + increment))
+                if new_res >= model.visual.input_resolution:
+                    new_res = model.visual.input_resolution
+                    if base_res > new_res:
+                        base_res = new_res
+                if args.jitter:
+                    jitter.lim *= 2
+                up_sample = Scale(new_res)
+                image = up_sample(image.detach())
+                image = center_crop(image, base_res)
+                image.requires_grad_(True)
+                optimizer, scheduler = get_optimizer(image, args.lr, args.optimizer)
+
+            else:
+                new_res = image.shape[2] * 2
+                if args.jitter:
+                    jitter.lim = jitter.lim * 2
+                if new_res >= model.visual.input_resolution:
+                    new_res = model.visual.input_resolution
+                up_sample = Scale(new_res)
+                image = up_sample(image.detach())
+                image.requires_grad_(True)
+                optimizer, scheduler = get_optimizer(image, args.lr, args.optimizer)
     
         def closure():
             optimizer.zero_grad()
