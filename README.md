@@ -1,3 +1,13 @@
+### Changes 18/NOV/2024
+- Added `invert-ga-overengineered.py`
+- Usage: Same as other, see below or args @ code
+- Better text embeddings -> Better model inversion:
+
+~ Who needs a diffusion model? Img2Img with the 'text encoder'! 😉 ~
+
+![who-needs-diffusion](https://github.com/user-attachments/assets/5858d68f-28e5-4e0f-b873-0f044dfe1c52)
+
+-----
 ### Changes 30/AUG/2024
 
 - Added Gradient Ascent (GA): Uses an input image instead of a text prompt.
